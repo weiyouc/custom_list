@@ -1,0 +1,28 @@
+1. Goal:
+I need to write a tool to compare the data in three excel files.
+
+The first excel file contains the data to be checked. For example "_Import CheckList-SIM1058324 New._CheckList_Data_17.43.45.xlsx"
+It has the following columns:
+P/N, Desc, HSN, Duty, Welfare, IGST, Cus AIDC, Hlth Cess, PCS, Edu Cess, Sec Higher Edu Cess, Cus Edu Cess, Cus Sec Higher Edu Cess, GST Cess, Qty, Price, Category, Item#, TxtLine, Cus Notn, Value Amt
+
+The second excel file contains the partial data to be checked against. For example "24HC01713海运物料 - 副本.xlsx". This is the BOM data from the shipping slip.
+It has the following columns:
+"Item Nos.", "Model No.", "P/N", "Description", "Original Country", "Quantity PCS", "Unit Price USD", "Amount USD", "Alternative materials"
+								
+The third excel file contains the other partial data to be checked against. For example "税率汇总-20230822.xlsx"
+It has the following columns:
+"Item name", "India HS code", "BCD", "SWS", "IGST", "BCD", "SWS", "IGST", "BCD", "Remark"
+
+2. The checking logic:
+a) The P/N in the first excel file should be found in the second excel file's P/N column.
+b) The Desc in the first excel file should be found in the second excel file's Description column.
+c) The HSN in the first excel file should be found in the third excel file's India HS code column.  
+d) The Duty in the first excel file should be found in the third excel file's BCD column.
+
+3. Runtime environment:
+- Python
+- Pandas
+- Openpyxl
+- Xlsxwriter
+
+4. This code needs to be run on both Windows and Mac. Also, it would be good if it can be run in a web browser.

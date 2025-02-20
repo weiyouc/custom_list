@@ -1,0 +1,4 @@
+replace ' +OR- ' with '±'
+
+"Item"	"Model No."	"P/N"	"Description"	"Quantity PCS"	"Unit Price USD"	"Amount USD"
+							
