@@ -138,7 +138,7 @@ class ExcelConverter:
             
             item_number += 1
         
-        # Create new header with Item No. column and additional columns
+        # Create new header with Item Nos. column and additional columns
         new_header = ['Item Nos.']
         header_list = list(header_row)
         
@@ -165,87 +165,109 @@ class ExcelConverter:
         if amount_col in new_df.columns:
             new_df[amount_col] = new_df[amount_col].round(2)
         
-        # Reorder columns to match specified order
-        first_columns = ['Item Nos.', 'Model No.', 'P/N', 'Description', 'Quantity PCS', 'Unit Price USD', 'Amount USD']
+        # Reorder columns to match specified order - Update column names to match exactly
+        first_columns = ['Item Nos.', 'Model Nos.', 'P/N', 'Description', 'Quantity PCS', 'Unit Price USD', 'Amount USD']
         other_columns = [col for col in new_df.columns if col not in first_columns]
         ordered_columns = first_columns + other_columns
+        
+        # Debug print to check available columns
+        self.logger.debug(f"Available columns: {new_df.columns.tolist()}")
+        self.logger.debug(f"Attempting to reorder columns: {ordered_columns}")
         
         # Reorder the DataFrame columns
         new_df = new_df[ordered_columns]
         
         return new_df
     
+    def process_sheet(self, df: pd.DataFrame) -> Dict[str, pd.DataFrame]:
+        """Process a single sheet and return processed invoice data"""
+        # Initialize variables
+        header_row = None
+        current_invoice = None
+        current_data = []
+        sheet_data = {}  # Dictionary to store data for each invoice
+        
+        # Process each row
+        for idx, row in df.iterrows():
+            self.logger.debug(f"Processing row {idx}")
+            
+            # Skip yellow frame content
+            if self.should_skip_row(row):
+                self.logger.info(f"--Skipping row: {' '.join(str(val) for val in row.values)}")
+                continue
+            
+            # Check if this is the header row
+            if header_row is None and self.is_header_row(row):
+                header_row = row
+                self.logger.info(f"Found header row at index {idx}: {header_row.tolist()}")
+                continue
+            
+            # Check if this is an invoice row
+            is_invoice, invoice_number = self.is_invoice_row(row)
+            
+            if is_invoice:
+                # Save current batch if exists
+                if current_invoice and current_data:
+                    self.logger.info(f"Saving {len(current_data)} rows for invoice {current_invoice}")
+                    sheet_data[current_invoice] = self.process_dataframe(pd.DataFrame(current_data), header_row)
+                
+                # Start new batch
+                current_invoice = invoice_number
+                current_data = []
+                self.logger.info(f"Starting new invoice: {current_invoice}")
+                
+            elif current_invoice and header_row is not None:
+                # Add row to current batch
+                current_data.append(row)
+                self.logger.debug(f"Added row to invoice {current_invoice}")
+        
+        # Save last batch
+        if current_invoice and current_data:
+            self.logger.info(f"Saving final {len(current_data)} rows for invoice {current_invoice}")
+            sheet_data[current_invoice] = self.process_dataframe(pd.DataFrame(current_data), header_row)
+        
+        return sheet_data
+
     def process_excel(self, input_path: Path, output_path: Path):
         """Main function to process the Excel file"""
         try:
-            # Read the Excel file
+            # Read all sheets from the Excel file
             self.logger.info(f"Reading input file: {input_path}")
-            df = pd.read_excel(input_path, header=None)
-            self.logger.info(f"Total rows in input file: {len(df)}")
+            excel_file = pd.ExcelFile(input_path)
+            sheet_names = excel_file.sheet_names
+            self.logger.info(f"Found {len(sheet_names)} sheets: {sheet_names}")
             
-            # Initialize variables
-            header_row = None
-            current_invoice = None
-            current_data = []
-            all_data = {}  # Dictionary to store data for each invoice
+            # Process each sheet
+            all_processed_data = {}
             
-            # Process each row
-            for idx, row in df.iterrows():
-                self.logger.debug(f"Processing row {idx}")
+            for sheet_name in sheet_names:
+                self.logger.info(f"Processing sheet: {sheet_name}")
+                # Read the current sheet
+                df = pd.read_excel(input_path, sheet_name=sheet_name, header=None)
+                self.logger.info(f"Total rows in sheet: {len(df)}")
                 
-                # Skip yellow frame content
-                if self.should_skip_row(row):
-                    self.logger.info(f"--Skipping row: {' '.join(str(val) for val in row.values)}")
-                    continue
+                # Process the sheet
+                sheet_data = self.process_sheet(df)
                 
-                # Check if this is the header row
-                if header_row is None and self.is_header_row(row):
-                    header_row = row
-                    self.logger.info(f"Found header row at index {idx}: {header_row.tolist()}")
-                    continue
-                
-                # Check if this is an invoice row
-                is_invoice, invoice_number = self.is_invoice_row(row)
-                
-                if is_invoice:
-                    # Save current batch if exists
-                    if current_invoice and current_data:
-                        self.logger.info(f"Saving {len(current_data)} rows for invoice {current_invoice}")
-                        all_data[current_invoice] = pd.DataFrame(current_data)
-                    
-                    # Start new batch
-                    current_invoice = invoice_number
-                    current_data = []
-                    self.logger.info(f"Starting new invoice: {current_invoice}")
-                    
-                elif current_invoice and header_row is not None:
-                    # Add row to current batch
-                    current_data.append(row)
-                    self.logger.debug(f"Added row to invoice {current_invoice}")
+                # Add processed data to overall results
+                if sheet_data:
+                    self.logger.info(f"Found {len(sheet_data)} invoices in sheet {sheet_name}")
+                    all_processed_data.update(sheet_data)
+                else:
+                    self.logger.warning(f"No invoice data found in sheet: {sheet_name}")
             
-            # Save last batch
-            if current_invoice and current_data:
-                self.logger.info(f"Saving final {len(current_data)} rows for invoice {current_invoice}")
-                all_data[current_invoice] = pd.DataFrame(current_data)
-            
-            # Check if we found any data
-            if not all_data:
-                self.logger.error("No invoice data was found!")
+            # Check if we found any data across all sheets
+            if not all_processed_data:
+                self.logger.error("No invoice data was found in any sheet!")
                 return
             
-            self.logger.info(f"Found {len(all_data)} invoices")
-            
-            # Process each invoice's data to split descriptions
-            processed_data = {}
-            for invoice_num, data in all_data.items():
-                self.logger.info(f"Processing descriptions for invoice {invoice_num}")
-                processed_data[invoice_num] = self.process_dataframe(data, header_row)
+            self.logger.info(f"Found total {len(all_processed_data)} invoices across all sheets")
             
             # Write to output file
             self.logger.info(f"Writing output file: {output_path}")
             with pd.ExcelWriter(output_path, engine='xlsxwriter') as writer:
                 # Write each invoice to its own sheet
-                for invoice_num, data in processed_data.items():
+                for invoice_num, data in all_processed_data.items():
                     sheet_name = re.sub(r'[\\/*\[\]:?]', '', invoice_num)
                     if len(sheet_name) > 31:
                         sheet_name = sheet_name[:31]
