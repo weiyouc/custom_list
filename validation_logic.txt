@@ -1,0 +1,7 @@
+1. Load the excel file to be validated (i.e. the first file) sheet by sheet
+2. For that sheet, look for the sheet that has the same name in the second file (i.e. the shipping list excel)
+3. For each sheet, we need to validate line by line. 
+4. For each line, we need to validate the data column by column. 
+5. For the columns named "Item Nos.", "Model Nos.", "P/N", "Description", "Quantity PCS", "Unit Price USD", "Amount USD", we need to find the corresponding line in the second file. Do pay attention to the possible CR characters in the column name.
+6. For the column named "Item name", we need to find the corresponding line in the third file, then check to see if the "India HS code" column in the third file matches with the "India HS code" column in the first file, and so for the "Duty", "Welfare", "IGST" columns.
+
