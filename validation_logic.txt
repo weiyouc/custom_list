@@ -1,7 +1,17 @@
+Step 0: Normalize the first file by calling normalize-inputexcel.py
+
+Step 1: Normalize the second file by calling normalize-shipping.py
+
+Step 2: Loading the file and sheets inside the files
 1. Load the excel file to be validated (i.e. the first file) sheet by sheet
 2. For that sheet, look for the sheet that has the same name in the second file (i.e. the shipping list excel)
-3. For each sheet, we need to validate line by line. 
-4. For each line, we need to validate the data column by column. 
-5. For the columns named "Item Nos.", "Model Nos.", "P/N", "Description", "Quantity PCS", "Unit Price USD", "Amount USD", we need to find the corresponding line in the second file. Do pay attention to the possible CR characters in the column name.
-6. For the column named "Item name", we need to find the corresponding line in the third file, then check to see if the "India HS code" column in the third file matches with the "India HS code" column in the first file, and so for the "Duty", "Welfare", "IGST" columns.
+
+Step 3: Within each sheet by validate line by line. 
+1. For each line, we need to retrieve the value of column "P/N" from the first file
+2. Then use that value to find the corresponding line in the second file that also have the same value in the "P/N" column.
+3. Once we find the corresponding row in the second file, we need to compare the values in the columns named "Item Nos.", "Model Nos.", "Description", "Quantity PCS", "Unit Price USD", "Amount USD", we need to make sure the values in those columns do match between the two files for that particular row. 
+
+Step 4: Validate the custom duty and welfare tax columns
+1. The next step is to look up the value in the column named "Item name" in the first file, then we need to find the corresponding line in the third file with the same value in the "Item name" column. Then check to see if the "India HS code" column in the third file matches with the "India HS code" column in the first file.
+2. Do the same so for the "Duty", "Welfare", "IGST" columns.
 

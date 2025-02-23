@@ -54,7 +54,7 @@ def extract_shipping_table(df: pd.DataFrame) -> pd.DataFrame:
     # Remove empty rows and reset index
     cleaned_df = shipping_df.iloc[1:].dropna(how='all').reset_index(drop=True)
     
-    # Add validation for Item No. column
+    # Add validation for Item No. column (using the standardized name)
     if 'Item No.' in cleaned_df.columns:
         # Keep only rows where Item No. looks valid (number or specific pattern)
         cleaned_df = cleaned_df[
@@ -65,26 +65,17 @@ def extract_shipping_table(df: pd.DataFrame) -> pd.DataFrame:
 
 def find_header_row(df: pd.DataFrame) -> int:
     """Find the first row containing shipping table headers"""
-    required_columns = ['Item No.', 'Model No.', 'P/N', 'Quantity PCS']
+    # Use both variations to find the header
+    required_columns = ['Item Nos.', 'Item No.', 'Model No.', 'P/N', 'Quantity PCS', 'Unit Price USD', 'Amount USD']
     
     for idx, row in df.iterrows():
-        # Convert row to clean string values
         clean_row = [str(cell).strip() for cell in row.values]
+        row_str = ' '.join(clean_row).lower()
         
-        # Check for exact column matches in any order
-        match_count = 0
-        for col in required_columns:
-            if any(col in cell for cell in clean_row):
-                match_count += 1
-                
-        # Require at least 3 matches and verify next row has data
-        if match_count >= 3:
-            next_idx = idx + 1
-            if next_idx < len(df) and not df.iloc[next_idx].isna().all():
-                return idx
-                
-        # Additional check for merged header cells
-        if all(col in ' '.join(clean_row) for col in required_columns):
+        match_count = sum(1 for col in required_columns 
+                         if col.lower() in row_str)
+        
+        if match_count >= 3:  # Found header row
             return idx
             
     return None
@@ -103,10 +94,14 @@ def is_empty_row(row: pd.Series) -> bool:
     """Check if a row is essentially empty"""
     return row.dropna().empty
 
+def clean_column_name(name: str) -> str:
+    """Clean column name by removing newlines and extra spaces"""
+    return str(name).replace('\n', '').replace('\r', '').strip()
+
 def clean_headers(headers) -> list:
     """Normalize column headers"""
     column_map = {
-        'Item No.': ['Item No.', 'Item Number', 'Item Nos', 'Item', 'Item#', 'Item Code'],
+        'Item No.': ['Item Nos.', 'Item Nos', 'Item Number', 'Item', 'Item#', 'Item Code'],
         'Model No.': ['Model No.', 'Model Number', 'Model Nos'],
         'P/N': ['P/N', 'Part Number', 'Part No'],
         'Description': ['Description', 'Desc'],
@@ -117,12 +112,16 @@ def clean_headers(headers) -> list:
     
     cleaned = []
     for header in headers:
-        header_str = str(header).strip()
+        # Clean the header first
+        header_str = clean_column_name(header)
+        matched = False
         for standard_name, variants in column_map.items():
-            if any(v.lower() in header_str.lower() for v in variants):
+            # Compare cleaned versions
+            if any(header_str.lower() == clean_column_name(v).lower() for v in variants):
                 cleaned.append(standard_name)
+                matched = True
                 break
-        else:
+        if not matched:
             cleaned.append(header_str)
     return cleaned
 
@@ -130,7 +129,25 @@ def filter_columns(df: pd.DataFrame) -> pd.DataFrame:
     """Keep only required columns"""
     required = ['Item No.', 'Model No.', 'P/N', 'Description', 
                'Quantity PCS', 'Unit Price USD', 'Amount USD']
-    return df[[col for col in required if col in df.columns]]
+    
+    # Clean column names in DataFrame
+    df.columns = [clean_column_name(col) for col in df.columns]
+    
+    # Debug print
+    print("Available columns after cleaning:", df.columns.tolist())
+    
+    # Get columns that exist in the DataFrame
+    cols_to_keep = []
+    for col in required:
+        if col in df.columns or clean_column_name(col) in df.columns:
+            cols_to_keep.append(col)
+    
+    if not cols_to_keep:
+        print("Warning: No required columns found in DataFrame")
+        return pd.DataFrame()
+    
+    print("Keeping columns:", cols_to_keep)
+    return df[cols_to_keep]
 
 if __name__ == "__main__":
     import argparse

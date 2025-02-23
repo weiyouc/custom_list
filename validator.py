@@ -9,6 +9,8 @@ import warnings
 import difflib  # Add this at the top with other imports
 import re
 import math
+import subprocess
+import os
 
 def clean_column_name(name: str) -> str:
     """Handle CR characters and normalize names"""
@@ -431,14 +433,38 @@ Note: The validation report will be generated as 'validation_report.xlsx' in the
     
     # Add normalization step before validation
     try:
+        # Create output paths with _normalized suffix
+        input_path = Path(args.input_file)
+        normalized_input_path = input_path.with_stem(f"{input_path.stem}_normalized")
+        
+        shipping_path = Path(args.shipping_list)
+        normalized_shipping_path = shipping_path.with_stem(f"{shipping_path.stem}_normalized")
+
         # Step 0: Normalize input Excel file
-        from normalize_inputexcel import normalize_excel
-        normalized_input_path = normalize_excel(args.input_file)
+        print(f"Normalizing input file to {normalized_input_path}...")
+        subprocess.check_call([
+            "python", 
+            "normalize-inputexcel.py",
+            str(input_path),
+            str(normalized_input_path)
+        ])
         
+        # Verify normalization output
+        if not normalized_input_path.exists():
+            raise FileNotFoundError(f"Normalization failed to create {normalized_input_path}")
+
         # Step 1: Normalize shipping list
-        from normalize_shipping import normalize_shipping_file
-        normalized_shipping_path = normalize_shipping_file(args.shipping_list)
-        
+        print(f"Normalizing shipping file to {normalized_shipping_path}...")
+        subprocess.check_call([
+            "python",
+            "normalize-shipping.py", 
+            str(shipping_path),
+            str(normalized_shipping_path)
+        ])
+
+        if not normalized_shipping_path.exists():
+            raise FileNotFoundError(f"Normalization failed to create {normalized_shipping_path}")
+
     except Exception as e:
         logging.error(f"Normalization failed: {str(e)}")
         return
